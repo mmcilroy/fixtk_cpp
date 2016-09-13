@@ -7,7 +7,6 @@
 
 #include <memory>
 #include <experimental/memory>
-#include <unordered_map>
 
 namespace fix {
 
@@ -40,17 +39,6 @@ private:
     std::weak_ptr< sender > sender_;
     std::unique_ptr< receiver > receiver_;
     std::unique_ptr< persistence > persistence_;
-};
-
-
-// ---------------------------------------------------------------------------
-
-class session_factory {
-public:
-    virtual session* get_session( const session_id& );
-
-private:
-    std::unordered_map< session_id, std::unique_ptr< session > > sessions_;
 };
 
 
@@ -102,19 +90,6 @@ void fix::session::receive( const message& m ) {
     log_debug( "recv: " << m );
     if( receiver_ ) {
         receiver_->receive( m );
-    }
-}
-
-
-// ---------------------------------------------------------------------------
-
-session* fix::session_factory::get_session( const session_id& id ) {
-    auto it = sessions_.find( id );
-    if( it == sessions_.end() ) {
-        sessions_[ id ] = std::unique_ptr< session >( new session{ id, std::unique_ptr< persistence >( new in_memory_persistence ) } );
-        return sessions_[ id ].get();
-    } else {
-        return it->second.get();
     }
 }
 

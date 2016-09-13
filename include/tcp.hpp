@@ -1,6 +1,7 @@
 #pragma once
 
 #include "session.hpp"
+#include "session_factory.hpp"
 #include "serialization.hpp"
 #include "log.hpp"
 
