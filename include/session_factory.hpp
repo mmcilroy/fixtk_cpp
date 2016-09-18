@@ -23,16 +23,14 @@ struct alloc_receiver {
 };
 
 // this is just a test implementation of session_factory
+template<
+    typename AllocPersistence = alloc_in_memory_persistence,
+    typename AllocReceiver = alloc_receiver >
 class session_factory_impl : public session_factory {
 public:
     session* get_session( const session_id& ) override;
 
 private:
-    template<
-        typename AllocPersistence = alloc_in_memory_persistence,
-        typename AllocReceiver = alloc_receiver >
-    session* get_session_impl( const session_id& );
-
     std::unordered_map< session_id, std::unique_ptr< session > > sessions_;
 };
 
@@ -47,14 +45,10 @@ session::receiver* alloc_receiver::operator()() {
     return nullptr;
 }
 
-session* session_factory_impl::get_session( const session_id& id ) {
-    return get_session_impl( id );
-}
-
 template<
     typename AllocPersistence,
     typename AllocReceiver >
-session* fix::session_factory_impl::get_session_impl( const session_id& id ) {
+session* session_factory_impl< AllocPersistence, AllocReceiver >::get_session( const session_id& id ) {
     auto it = sessions_.find( id );
     if( it == sessions_.end() ) {
         auto p = std::unique_ptr< persistence >( AllocPersistence()() );
