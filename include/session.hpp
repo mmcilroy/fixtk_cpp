@@ -18,17 +18,18 @@ public:
     };
 
     struct receiver {
-        virtual void receive( const message& ) = 0;
+        virtual void receive( session&, const message& ) = 0;
     };
 
     session( const session_id& );
-    session( const session_id&, std::unique_ptr< persistence > );
+    session( const session_id&, std::unique_ptr< receiver >, std::unique_ptr< persistence > );
 
     void connect( const std::shared_ptr< sender >& );
     void disconnect();
     void send( const message_type&, const message& );
     void receive( const message& );
     message get_sent( sequence ) const;
+    sequence get_receive_sequence() const;
     void confirm_receipt( sequence );
 
 private:
@@ -51,10 +52,11 @@ fix::session::session( const session_id& id ) :
     ;
 }
 
-fix::session::session( const session_id& id, std::unique_ptr< persistence > p ) :
+fix::session::session( const session_id& id, std::unique_ptr< receiver > r, std::unique_ptr< persistence > p ) :
     id_( id ),
-    send_sequence_( 1 ),
-    receive_sequence_( 1 ),
+    send_sequence_( p->load_send_sequence() ),
+    receive_sequence_( p->load_receive_sequence() ),
+    receiver_( std::move( r ) ),
     persistence_( std::move( p ) ) {
     ;
 }
@@ -71,7 +73,7 @@ void fix::session::disconnect() {
 }
 
 void fix::session::send( const message_type& type, const message& body ) {
-    string msg = serialize( id_, type, body );
+    string msg = serialize( id_, type, send_sequence_, body );
     log_debug( "send:" << msg );
     if( persistence_ ) {
         persistence_->store_send_sequence( send_sequence_ );
@@ -89,8 +91,12 @@ void fix::session::send( const message_type& type, const message& body ) {
 void fix::session::receive( const message& m ) {
     log_debug( "recv: " << m );
     if( receiver_ ) {
-        receiver_->receive( m );
+        receiver_->receive( *this, m );
     }
+}
+
+sequence fix::session::get_receive_sequence() const {
+    return receive_sequence_;
 }
 
 }

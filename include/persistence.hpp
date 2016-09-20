@@ -21,6 +21,7 @@ public:
 
 class in_memory_persistence : public persistence {
 public:
+    in_memory_persistence();
     sequence load_send_sequence() override;
     sequence load_receive_sequence() override;
     string load_sent_message( sequence ) override;
@@ -38,6 +39,11 @@ private:
 
 
 // ---------------------------------------------------------------------------
+in_memory_persistence::in_memory_persistence() :
+    send_sequence_( 1 ),
+    receive_sequence_( 1 ) {
+    ;
+}
 
 sequence in_memory_persistence::load_send_sequence() {
     return send_sequence_;

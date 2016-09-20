@@ -150,7 +150,7 @@ void tcp_session::receive() {
             if( !ec ) {
                 fix::message m = fix::parse( data_ );
                 if( session_ == nullptr ) {
-                    fix::session_id i{ m };
+                    fix::session_id i{ m, true };
                     session_ = factory_->get_session( i );
                     if( session_ ) {
                         session_->connect( sender_ );

@@ -10,7 +10,7 @@ namespace fix {
 
 class session_id {
 public:
-    session_id( const message& );
+    session_id( const message&, bool inverse = false );
     session_id( const string&, const string&, const string& );
 
     string get_protocol() const;
@@ -38,14 +38,22 @@ session_id::session_id( const string& protocol, const string& sender, const stri
     ;
 }
 
-session_id::session_id( const message& m ) {
+session_id::session_id( const message& m, bool inverse ) {
     for( auto& i : m ) {
         if( i.get_tag() == 8 ) {
             protocol_ = i.get_value();
         } else if( i.get_tag() == 49 ) {
-            sender_ = i.get_value();
+            if( inverse ) {
+                target_ = i.get_value();
+            } else {
+                sender_ = i.get_value();
+            }
         } else if( i.get_tag() == 56 ) {
-            target_ = i.get_value();
+            if( inverse ) {
+                sender_ = i.get_value();
+            } else {
+                target_ = i.get_value();
+            }
         }
         if( protocol_.size() && sender_.size() && target_.size() ) {
             break;

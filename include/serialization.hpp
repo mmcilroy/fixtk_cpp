@@ -24,12 +24,13 @@ message parse( const string& b ) {
 string serialize( 
     const session_id& id,
     const message_type& type,
+    sequence seq,
     const message& body ) {
     std::stringstream ss;
     ss <<  "8=" << id.get_protocol() << delim
        <<  "9=??" << delim
        << "35=" << type << delim
-       << "34=??" << delim
+       << "34=" << seq << delim
        << "49=" << id.get_sender() << delim
        << "56=" << id.get_target() << delim
        <<  body

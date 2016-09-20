@@ -24,8 +24,8 @@ struct alloc_receiver {
 
 // this is just a test implementation of session_factory
 template<
-    typename AllocPersistence = alloc_in_memory_persistence,
-    typename AllocReceiver = alloc_receiver >
+    typename AllocReceiver = alloc_receiver,
+    typename AllocPersistence = alloc_in_memory_persistence >
 class session_factory_impl : public session_factory {
 public:
     session* get_session( const session_id& ) override;
@@ -46,14 +46,14 @@ session::receiver* alloc_receiver::operator()() {
 }
 
 template<
-    typename AllocPersistence,
-    typename AllocReceiver >
-session* session_factory_impl< AllocPersistence, AllocReceiver >::get_session( const session_id& id ) {
+    typename AllocReceiver,
+    typename AllocPersistence >
+session* session_factory_impl< AllocReceiver, AllocPersistence >::get_session( const session_id& id ) {
     auto it = sessions_.find( id );
     if( it == sessions_.end() ) {
         auto p = std::unique_ptr< persistence >( AllocPersistence()() );
         auto r = std::unique_ptr< session::receiver >( AllocReceiver()() );
-        sessions_[ id ] = std::unique_ptr< session >( new session{ id, std::move( p ) } );
+        sessions_[ id ] = std::unique_ptr< session >( new session{ id, std::move( r ), std::move( p ) } );
         return sessions_[ id ].get();
     } else {
         return it->second.get();
