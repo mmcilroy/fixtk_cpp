@@ -26,9 +26,13 @@ public:
 
     void connect( const std::shared_ptr< sender >& );
     void disconnect();
+
     void send( const message_type&, const message& );
-    void receive( const message& );
+    void set_send_sequence( sequence );
     message get_sent( sequence ) const;
+
+    void receive( const message& );
+    void set_receive_sequence( sequence );
     sequence get_receive_sequence() const;
     void confirm_receipt( sequence );
 
@@ -89,7 +93,7 @@ void fix::session::send( const message_type& type, const message& body ) {
 }
 
 void fix::session::receive( const message& m ) {
-    log_debug( "recv: " << m );
+    log_debug( "recv: " << id_ << " | " << m );
     if( receiver_ ) {
         receiver_->receive( *this, m );
     }
@@ -97,6 +101,14 @@ void fix::session::receive( const message& m ) {
 
 sequence fix::session::get_receive_sequence() const {
     return receive_sequence_;
+}
+
+void fix::session::set_send_sequence( sequence s ) {
+    send_sequence_ = s;
+}
+
+void fix::session::set_receive_sequence( sequence s ) {
+    receive_sequence_ = s;
 }
 
 }

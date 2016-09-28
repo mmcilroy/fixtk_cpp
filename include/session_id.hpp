@@ -86,6 +86,11 @@ bool session_id::operator==( const session_id& rhs ) const {
     return id_ == rhs.id_;
 }
 
+std::ostream& operator<<( std::ostream& out, const fix::session_id& id ) {
+    out << id.get_id();
+    return out;
+}
+
 }
 
 
