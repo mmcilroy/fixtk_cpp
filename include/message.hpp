@@ -1,9 +1,11 @@
 #pragma once
 
-#include <vector>
+#include <algorithm>
+#include <stdexcept>
 #include <string>
 #include <sstream>
 #include <ostream>
+#include <vector>
 
 namespace fix {
 
@@ -63,6 +65,22 @@ std::ostream& operator<<( std::ostream& o, const message& v ) {
         o << f << delim;
     }
     return o;
+}
+
+template< typename It >
+It find_field( fix::tag t, It b, It e ) {
+    return std::find_if( b, e, [ t ]( const fix::field& f ) {
+        return f.get_tag() == t;
+    } );
+}
+
+fix::value find_field( fix::tag t, const fix::message& m ) {
+    auto it = find_field( t, m.begin(), m.end() );
+    if( it != m.end() ) {
+        return (*it).get_value();
+    } else {
+        throw std::runtime_error( "field not found!" );
+    }
 }
 
 }

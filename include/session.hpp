@@ -13,8 +13,8 @@ namespace fix {
 class session {
 public:
     struct sender {
-        virtual void send( const string& ) = 0;
-        virtual void close() = 0;
+        virtual void send( session&, const string& ) = 0;
+        virtual void close( session& ) = 0;
     };
 
     struct receiver {
@@ -23,6 +23,9 @@ public:
 
     session( const session_id& );
     session( const session_id&, std::unique_ptr< receiver >, std::unique_ptr< persistence > );
+
+    const session_id& get_id() const;
+    receiver* get_receiver() const;
 
     void connect( const std::shared_ptr< sender >& );
     void disconnect();
@@ -65,6 +68,14 @@ fix::session::session( const session_id& id, std::unique_ptr< receiver > r, std:
     ;
 }
 
+const fix::session_id& fix::session::get_id() const {
+    return id_;
+}
+
+fix::session::receiver* fix::session::get_receiver() const {
+    return receiver_.get();
+}
+
 void fix::session::connect( const std::shared_ptr< sender >& s ) {
     sender_ = s;
 }
@@ -72,7 +83,7 @@ void fix::session::connect( const std::shared_ptr< sender >& s ) {
 void fix::session::disconnect() {
     auto s = sender_.lock();
     if( s ) {
-        s->close();
+        s->close( *this );
     }
 }
 
@@ -85,7 +96,7 @@ void fix::session::send( const message_type& type, const message& body ) {
     }
     auto s = sender_.lock();
     if( s ) {
-        s->send( msg );
+        s->send( *this, msg );
     } else {
         log_debug( "no sender" );
     }

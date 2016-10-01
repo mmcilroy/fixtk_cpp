@@ -18,8 +18,8 @@ public:
     tcp_sender( tcp_session& );
     ~tcp_sender();
 
-    void send( const fix::string& ) override;
-    void close() override;
+    void send( fix::session&, const fix::string& ) override;
+    void close( fix::session& ) override;
 
 private:
     std::observer_ptr< tcp_session > session_;
@@ -96,11 +96,11 @@ tcp_sender::~tcp_sender() {
     log_debug( "del tcp_sender @ " << (void*)this );
 }
 
-void tcp_sender::send( const fix::string& s ) {
+void tcp_sender::send( fix::session&, const fix::string& s ) {
     session_->send( s );
 }
 
-void tcp_sender::close() {
+void tcp_sender::close( fix::session& ) {
     session_->close();
 }
 
@@ -213,7 +213,7 @@ void tcp_connector::connect( const std::string& conn, const fix::session_id& id,
     auto fix_sess = factory_->get_session( id );
     auto tcp_sess = std::make_shared< tcp_session >( std::move( sock ), *fix_sess );
     boost::asio::async_connect( tcp_sess->socket_, endpoint,
-        [ tcp_sess, fix_sess, handler ]( boost::system::error_code ec, tcp::resolver::iterator ) {
+        [ this, tcp_sess, fix_sess, handler ]( boost::system::error_code ec, tcp::resolver::iterator ) {
             log_debug( "connected!" );
             if( !ec ) {
                 handler( *fix_sess );
