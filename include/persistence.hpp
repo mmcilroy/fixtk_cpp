@@ -11,8 +11,8 @@ public:
     virtual sequence load_send_sequence() = 0;
     virtual sequence load_receive_sequence() = 0;
     virtual string load_sent_message( sequence ) = 0;
-    virtual void store_receive_sequence( sequence ) = 0;
     virtual void store_send_sequence( sequence ) = 0;
+    virtual void store_receive_sequence( sequence ) = 0;
     virtual void store_sent_message( sequence, const string& ) = 0;
 };
 
@@ -68,7 +68,7 @@ void in_memory_persistence::store_receive_sequence( sequence s )  {
 }
 
 void in_memory_persistence::store_send_sequence( sequence s )  {
-    log_debug( "persist receive sequence: " << s );
+    log_debug( "persist send sequence: " << s );
     receive_sequence_ = s;
 }
 

@@ -13,16 +13,18 @@ protected:
     virtual void process( session&, const message&, const message_type& ) {}
 
 private:
+    void pre_process( session&, const message&, const sequence&, const message_type& );
+
     void receive_while_logged_on( session&, const message& , const sequence& );
     void receive_while_logged_off( session&, const message& , const sequence& );
 
     bool queue( session&, const message&, const sequence& );
-    bool is_pending_resend();
+    bool is_pending_resend() const;
 
     void send_logon( session& );
     void send_resend( session&, sequence, sequence );
 
-    void logoff( session& sess );
+    void logoff( session& );
 
     std::list< std::pair< sequence, message > > queue_;
 
@@ -57,15 +59,28 @@ bool application::is_logged_on() const {
     return logged_on_;
 }
 
+void application::pre_process( session& sess, const message& msg, const sequence& seq_received, const message_type& type ) {
+    log_debug( "processing message " << seq_received );
+    process( sess, msg, type );
+    sess.set_receive_sequence( 1 + seq_received );
+
+    // process any queued messages
+    while( queue_.size() && queue_.front().first == sess.get_receive_sequence() ) {
+        receive( sess, queue_.front().second );
+        queue_.pop_front();
+    }
+}
+
 void application::receive_while_logged_on( session& sess, const message& msg, const sequence& seq_received ) {
     auto type = find_field( 35, msg );
     auto seq_expected = sess.get_receive_sequence();
     if( seq_received == seq_expected ) {
-        process( sess, msg, type );
+        pre_process( sess, msg, seq_received, type );
     } else {
         if( queue( sess, msg, seq_received ) ) {
             if( !is_pending_resend() ) {
-              send_resend( sess, seq_expected, seq_received-1 );
+                queue( sess, msg, seq_received );
+                send_resend( sess, seq_expected, seq_received-1 );
             }
         }
     }
@@ -77,6 +92,7 @@ void application::receive_while_logged_off( session& sess, const message& msg, c
         auto seq_expected = sess.get_receive_sequence();
         send_logon( sess );
         if( seq_received > seq_expected ) {
+            queue( sess, msg, seq_received );
             send_resend( sess, seq_expected, seq_received-1 );
         }
     } else {
@@ -98,8 +114,8 @@ bool application::queue( session& sess, const message& msg, const sequence& seq_
     return true;
 }
 
-bool application::is_pending_resend() {
-    return false;
+bool application::is_pending_resend() const {
+    return queue_.size() > 0;
 }
 
 void application::send_logon( session& sess ) {
@@ -113,6 +129,7 @@ void application::send_resend( session& sess, sequence low, sequence high ) {
 }
 
 void application::logoff( session& sess ) {
+    log_debug( "session logged off" );
     logged_on_ = false;
     sess.disconnect();
 }

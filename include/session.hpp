@@ -29,6 +29,7 @@ public:
 
     void connect( const std::shared_ptr< sender >& );
     void disconnect();
+    bool is_connected() const;
 
     void send( const message_type&, const message& );
     void set_send_sequence( sequence );
@@ -52,14 +53,14 @@ private:
 
 // ---------------------------------------------------------------------------
 
-fix::session::session( const session_id& id ) :
+session::session( const session_id& id ) :
     id_( id ),
     send_sequence_( 1 ),
     receive_sequence_( 1 ) {
     ;
 }
 
-fix::session::session( const session_id& id, std::unique_ptr< receiver > r, std::unique_ptr< persistence > p ) :
+session::session( const session_id& id, std::unique_ptr< receiver > r, std::unique_ptr< persistence > p ) :
     id_( id ),
     send_sequence_( p->load_send_sequence() ),
     receive_sequence_( p->load_receive_sequence() ),
@@ -68,26 +69,32 @@ fix::session::session( const session_id& id, std::unique_ptr< receiver > r, std:
     ;
 }
 
-const fix::session_id& fix::session::get_id() const {
+const session_id& session::get_id() const {
     return id_;
 }
 
-fix::session::receiver* fix::session::get_receiver() const {
+session::receiver* session::get_receiver() const {
     return receiver_.get();
 }
 
-void fix::session::connect( const std::shared_ptr< sender >& s ) {
+void session::connect( const std::shared_ptr< sender >& s ) {
     sender_ = s;
 }
 
-void fix::session::disconnect() {
+void session::disconnect() {
     auto s = sender_.lock();
     if( s ) {
         s->close( *this );
+        sender_.reset();
     }
 }
 
-void fix::session::send( const message_type& type, const message& body ) {
+bool session::is_connected() const {
+    auto s = sender_.lock();
+    return s.get() != nullptr;
+}
+
+void session::send( const message_type& type, const message& body ) {
     string msg = serialize( id_, type, send_sequence_, body );
     log_debug( "send:" << msg );
     if( persistence_ ) {
@@ -103,23 +110,32 @@ void fix::session::send( const message_type& type, const message& body ) {
     send_sequence_++;
 }
 
-void fix::session::receive( const message& m ) {
+void session::set_send_sequence( sequence s ) {
+    send_sequence_ = s;
+}
+
+message session::get_sent( sequence s ) const {
+    return parse( persistence_->load_sent_message( s ) );
+}
+
+void session::receive( const message& m ) {
     log_debug( "recv: " << id_ << " | " << m );
     if( receiver_ ) {
         receiver_->receive( *this, m );
     }
 }
 
-sequence fix::session::get_receive_sequence() const {
+void session::set_receive_sequence( sequence s ) {
+    receive_sequence_ = s;
+}
+
+sequence session::get_receive_sequence() const {
     return receive_sequence_;
 }
 
-void fix::session::set_send_sequence( sequence s ) {
-    send_sequence_ = s;
-}
-
-void fix::session::set_receive_sequence( sequence s ) {
-    receive_sequence_ = s;
+void session::confirm_receipt( sequence s ) {
+    log_debug( "confirm receipt: " << s );
+    persistence_->store_receive_sequence( s );
 }
 
 }
