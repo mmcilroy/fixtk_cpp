@@ -17,15 +17,17 @@ public:
         virtual void close( session& ) = 0;
     };
 
-    struct receiver {
-        virtual void receive( session&, const message& ) = 0;
+    struct listener {
+        virtual void on_connected( session& ) {}
+        virtual void on_disconnected( session& ) {}
+        virtual void on_message( session&, const message& ) {}
     };
 
     session( const session_id& );
-    session( const session_id&, std::unique_ptr< receiver >, std::unique_ptr< persistence > );
+    session( const session_id&, std::unique_ptr< listener >, std::unique_ptr< persistence > );
 
     const session_id& get_id() const;
-    receiver* get_receiver() const;
+    listener* get_listener() const;
 
     void connect( const std::shared_ptr< sender >& );
     void disconnect();
@@ -46,7 +48,7 @@ private:
     sequence receive_sequence_;
 
     std::weak_ptr< sender > sender_;
-    std::unique_ptr< receiver > receiver_;
+    std::unique_ptr< listener > listener_;
     std::unique_ptr< persistence > persistence_;
 };
 
@@ -60,11 +62,11 @@ session::session( const session_id& id ) :
     ;
 }
 
-session::session( const session_id& id, std::unique_ptr< receiver > r, std::unique_ptr< persistence > p ) :
+session::session( const session_id& id, std::unique_ptr< listener > r, std::unique_ptr< persistence > p ) :
     id_( id ),
     send_sequence_( p->load_send_sequence() ),
     receive_sequence_( p->load_receive_sequence() ),
-    receiver_( std::move( r ) ),
+    listener_( std::move( r ) ),
     persistence_( std::move( p ) ) {
     ;
 }
@@ -73,12 +75,15 @@ const session_id& session::get_id() const {
     return id_;
 }
 
-session::receiver* session::get_receiver() const {
-    return receiver_.get();
+session::listener* session::get_listener() const {
+    return listener_.get();
 }
 
 void session::connect( const std::shared_ptr< sender >& s ) {
     sender_ = s;
+    if( listener_ ) {
+        listener_->on_connected( *this );
+    }
 }
 
 void session::disconnect() {
@@ -86,6 +91,9 @@ void session::disconnect() {
     if( s ) {
         s->close( *this );
         sender_.reset();
+    }
+    if( listener_ ) {
+        listener_->on_disconnected( *this );
     }
 }
 
@@ -120,8 +128,8 @@ message session::get_sent( sequence s ) const {
 
 void session::receive( const message& m ) {
     log_debug( "recv: " << id_ << " | " << m );
-    if( receiver_ ) {
-        receiver_->receive( *this, m );
+    if( listener_ ) {
+        listener_->on_message( *this, m );
     }
 }
 

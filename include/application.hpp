@@ -1,137 +1,167 @@
 #pragma once
 
-#include "session.hpp"
+#include "session_factory.hpp"
 
 namespace fix {
 
-class application : public session::receiver {
+class application : public session::listener {
 public:
-    void receive( session&, const message& ) override;
+    struct listener {
+        virtual void on_connected( application& ) {}
+        virtual void on_disconnected( application& ) {}
+        virtual void on_message( application&, const message& ) {}
+    };
+
+    application( bool acceptor );
+
     bool is_logged_on() const;
 
+    void on_connected( session& ) override;
+    void on_disconnected( session& ) override;
+    void on_message( session&, const message& ) override;
+
 protected:
-    virtual void process( session&, const message&, const message_type& ) {}
+    void process( session&, const message&, const message_type&, const sequence& );
 
 private:
-    void pre_process( session&, const message&, const sequence&, const message_type& );
-
-    void receive_while_logged_on( session&, const message& , const sequence& );
-    void receive_while_logged_off( session&, const message& , const sequence& );
-
-    bool queue( session&, const message&, const sequence& );
-    bool is_pending_resend() const;
-
-    void send_logon( session& );
-    void send_resend( session&, sequence, sequence );
-
+    void logon( session& );
     void logoff( session& );
+    void resend( session&, sequence low, sequence high );
+    bool queue( session&, const message&, const sequence& );
 
+    bool acceptor_;
+    bool logged_on_;
     std::list< std::pair< sequence, message > > queue_;
-
-    bool logged_on_ = false;
 };
 
-struct alloc_application {
-    session::receiver* operator()() {
-        return new application;
-    }
-};
 
-void application::receive( session& sess, const message& msg ) {
-    auto seq_received = std::stoi( find_field( 34, msg ) );
-    auto seq_expected = sess.get_receive_sequence();
-    if( seq_received < seq_expected ) {
-        // if the sequence is too low (ie the message has already been processed)
-        // close the session immediately
-        log_debug( "received sequence " << seq_received << " is too low. expected " << seq_expected );
-        logoff( sess );
-    } else {
-        // attempt to process the message
-        if( logged_on_ ) {
-            receive_while_logged_on( sess, msg, seq_received );
-        } else {
-            receive_while_logged_off( sess, msg, seq_received );
-        }
-    }
+// ---------------------------------------------------------------------------
+
+application::application( bool acceptor ) :
+    acceptor_( acceptor ),
+    logged_on_( false ) {
+    ;
 }
 
 bool application::is_logged_on() const {
     return logged_on_;
 }
 
-void application::pre_process( session& sess, const message& msg, const sequence& seq_received, const message_type& type ) {
-    log_debug( "processing message " << seq_received );
-    process( sess, msg, type );
-    sess.set_receive_sequence( 1 + seq_received );
-
-    // process any queued messages
-    while( queue_.size() && queue_.front().first == sess.get_receive_sequence() ) {
-        receive( sess, queue_.front().second );
-        queue_.pop_front();
+void application::on_connected( session& ) {
+    if( acceptor_ ) {
+        // send logon
     }
 }
 
-void application::receive_while_logged_on( session& sess, const message& msg, const sequence& seq_received ) {
-    auto type = find_field( 35, msg );
+void application::on_disconnected( session& ) {
+    // ???
+}
+
+void application::on_message( session& sess, const message& msg ) {
+    auto seq_received = std::stoi( find_field( 34, msg ) );
     auto seq_expected = sess.get_receive_sequence();
-    if( seq_received == seq_expected ) {
-        pre_process( sess, msg, seq_received, type );
+    log_debug( "expected sequence " << seq_expected << ", received " << seq_received );
+
+    if( seq_received < seq_expected ) {
+        // if the sequence is too low close the session immediately
+        log_debug( "received sequence " << seq_received << " is too low. expected " << seq_expected );
+        logoff( sess );
     } else {
-        if( queue( sess, msg, seq_received ) ) {
-            if( !is_pending_resend() ) {
-                queue( sess, msg, seq_received );
-                send_resend( sess, seq_expected, seq_received-1 );
+        auto type = find_field( 35, msg );
+
+        // login if required
+        if( !logged_on_ ) {
+            if( type == "A" ) {
+                logon( sess );
+            } else {
+                log_debug( "message is not a logon" );
+                logoff( sess );
+            }
+        }
+
+        // process application message
+        if( logged_on_ ) {
+            if( seq_received == seq_expected ) {
+                // sequence expected so process immediately
+                process( sess, msg, type, seq_received );
+            } else {
+                // sequence too high therefore we've missed messages
+                // queue the message so it can be processed later
+                if( queue( sess, msg, seq_received ) ) {
+                    // if there is no outstanding resend requests issue one
+                    if( 1 == queue_.size() ) {
+                        resend( sess, seq_expected, seq_received-1 );
+                    }
+                }
             }
         }
     }
 }
 
-void application::receive_while_logged_off( session& sess, const message& msg, const sequence& seq_received ) {
-    auto type = find_field( 35, msg );
-    if( type == "A" ) {
-        auto seq_expected = sess.get_receive_sequence();
-        send_logon( sess );
-        if( seq_received > seq_expected ) {
-            queue( sess, msg, seq_received );
-            send_resend( sess, seq_expected, seq_received-1 );
+void application::process( session& sess, const message& msg, const message_type& type, const sequence& seq_received ) {
+    log_debug( "processing message " << seq_received );
+    sess.set_receive_sequence( 1 + seq_received );
+    if( type == "2" ) {
+        auto low = find_field( 7, msg );
+        auto high = find_field( 16, msg );
+        for( int i = std::stoi( low ); i <= std::stoi( high ); i++ ) {
+            auto resend_msg = sess.get_sent( i );
+            sess.send( find_field( 35, resend_msg ), resend_msg );
         }
+    } else if( type == "A" ) {
+        // this should be handled already!
     } else {
-        logoff( sess );
+        // process application message here!        
+    }
+
+    // handle any queued messages that are next in sequence
+    while( queue_.size() && queue_.front().first == sess.get_receive_sequence() ) {
+        on_message( sess, queue_.front().second );
+        queue_.pop_front();
     }
 }
 
+void application::logon( session& sess ) {
+    log_debug( "logged on" );
+    logged_on_ = true;
+    if( acceptor_ ) {
+        sess.send( "A", {} );
+    }
+}
+
+void application::logoff( session& sess ) {
+    log_debug( "logged off" );
+    logged_on_ = false;
+    queue_.clear();
+    sess.disconnect();
+}
+
+void application::resend( session& sess, sequence low, sequence high ) {
+    log_debug( "resend " << low << "-" << high );
+    sess.send( "2", { { 7, low }, { 16, high } } );
+}
+
 bool application::queue( session& sess, const message& msg, const sequence& seq_received ) {
-    log_debug( "queueing message " << seq_received );
+    log_debug( "queue message " << seq_received );
+
+    // if there are already queued messages make sure sequences are contiguous
     if( queue_.size() ) {
         auto& last = queue_.back();
         if( seq_received - last.first != 1 ) {
-            log_debug( "message sequence gap. " << last.first << " - " << seq_received );
+            log_debug( "sequence gap detected. expected " << sess.get_receive_sequence() << " or " << last.first + 1 << ", received " << seq_received );
             logoff( sess );
             return false;
         }
     }
+    // add the message to the back of the queue
     queue_.emplace_back( seq_received, msg );
     return true;
 }
 
-bool application::is_pending_resend() const {
-    return queue_.size() > 0;
-}
-
-void application::send_logon( session& sess ) {
-    log_debug( "session logged on" );
-    logged_on_ = true;
-    sess.send( "A", {} );
-}
-
-void application::send_resend( session& sess, sequence low, sequence high ) {
-    sess.send( "2", { { 7, low }, { 16, high } } );
-}
-
-void application::logoff( session& sess ) {
-    log_debug( "session logged off" );
-    logged_on_ = false;
-    sess.disconnect();
-}
+struct alloc_application {
+    session::listener* operator()() {
+        return new application( true );
+    }
+};
 
 }

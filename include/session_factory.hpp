@@ -18,13 +18,13 @@ struct alloc_in_memory_persistence {
     persistence* operator()();
 };
 
-struct alloc_receiver {
-    session::receiver* operator()();
+struct alloc_listener {
+    session::listener* operator()();
 };
 
 // this is just a test implementation of session_factory
 template<
-    typename AllocReceiver = alloc_receiver,
+    typename AllocReceiver = alloc_listener,
     typename AllocPersistence = alloc_in_memory_persistence >
 class session_factory_impl : public session_factory {
 public:
@@ -41,7 +41,7 @@ persistence* alloc_in_memory_persistence::operator()() {
     return new in_memory_persistence;
 }
 
-session::receiver* alloc_receiver::operator()() {
+session::listener* alloc_listener::operator()() {
     return nullptr;
 }
 
@@ -52,7 +52,7 @@ session* session_factory_impl< AllocReceiver, AllocPersistence >::get_session( c
     auto it = sessions_.find( id );
     if( it == sessions_.end() ) {
         auto p = std::unique_ptr< persistence >( AllocPersistence()() );
-        auto r = std::unique_ptr< session::receiver >( AllocReceiver()() );
+        auto r = std::unique_ptr< session::listener >( AllocReceiver()() );
         sessions_[ id ] = std::unique_ptr< session >( new session{ id, std::move( r ), std::move( p ) } );
         return sessions_[ id ].get();
     } else {
