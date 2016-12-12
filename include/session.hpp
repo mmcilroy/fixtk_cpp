@@ -127,7 +127,7 @@ message session::get_sent( sequence s ) const {
 }
 
 void session::receive( const message& m ) {
-    log_debug( "recv: " << id_ << " | " << m );
+    log_debug( "recv: " << id_ << " | " << m ); 
     if( listener_ ) {
         listener_->on_message( *this, m );
     }

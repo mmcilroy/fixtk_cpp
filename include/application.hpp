@@ -7,9 +7,9 @@ namespace fix {
 class application : public session::listener {
 public:
     struct listener {
-        virtual void on_connected( application& ) {}
-        virtual void on_disconnected( application& ) {}
-        virtual void on_message( application&, const message& ) {}
+        virtual void on_connected( session& ) {}
+        virtual void on_disconnected( session& ) {}
+        virtual void on_message( session&, const message& ) {}
     };
 
     application( bool acceptor );
@@ -54,7 +54,7 @@ void application::on_connected( session& ) {
 }
 
 void application::on_disconnected( session& ) {
-    // ???
+    // call listener
 }
 
 void application::on_message( session& sess, const message& msg ) {
@@ -108,10 +108,12 @@ void application::process( session& sess, const message& msg, const message_type
             auto resend_msg = sess.get_sent( i );
             sess.send( find_field( 35, resend_msg ), resend_msg );
         }
+        sess.confirm_receipt( seq_received );
     } else if( type == "A" ) {
-        // this should be handled already!
+        // this should be handled already - just need to confirm we received it!
+        sess.confirm_receipt( seq_received );
     } else {
-        // process application message here!        
+        // process application message here!
     }
 
     // handle any queued messages that are next in sequence

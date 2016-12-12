@@ -64,12 +64,16 @@ string in_memory_persistence::load_sent_message( sequence s )  {
 
 void in_memory_persistence::store_receive_sequence( sequence s )  {
     log_debug( "persist receive sequence: " << s );
-    receive_sequence_ = s;
+    if( s > receive_sequence_ ) {
+        receive_sequence_ = s;
+    }
 }
 
 void in_memory_persistence::store_send_sequence( sequence s )  {
     log_debug( "persist send sequence: " << s );
-    send_sequence_ = s;
+    if( s > send_sequence_ ) {
+        send_sequence_ = s;
+    }
 }
 
 void in_memory_persistence::store_sent_message( sequence s, const string& m )  {

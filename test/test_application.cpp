@@ -16,7 +16,7 @@ TEST_CASE( "application", "[]" ) {
         REQUIRE( fix::parse( "8=P|9=??|35=A|34=1|49=T|56=S|10=??|" ) == sess->get_sent( 1 ) );
         REQUIRE( appl->is_logged_on() );
     }
-
+    /*
     SECTION( "successful logon, sequence too high", "[]" ) {
         sess->receive( fix::parse( "8=P|9=??|35=A|34=666|49=S|56=T|10=??|" ) );
         REQUIRE( fix::parse( "8=P|9=??|35=A|34=1|49=T|56=S|10=??|" ) == sess->get_sent( 1 ) );
@@ -86,4 +86,5 @@ TEST_CASE( "application", "[]" ) {
         REQUIRE( sess->get_receive_sequence() == 1 );
         REQUIRE( appl->is_logged_on() == false );
     }
+    */
 }
